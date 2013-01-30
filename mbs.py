@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import shlex
+import linecache, shlex
 from optparse import OptionParser
 
 class FileMerger(object):
@@ -62,7 +62,8 @@ class FileMerger(object):
             
             elif parts and missed:
                 if parts[0] != self.MULTIPLE:
-                    missedInfo[currentKey] = line
+                    currentValue = missedInfo.get(currentKey, '')
+                    missedInfo[currentKey] = '%s\n%s' % (currentValue, line)
                 elif cntr % 2:
                     missed = False
                     cntr += 1
@@ -72,12 +73,42 @@ class FileMerger(object):
         expFile.close()
         return missedInfo, additional
     
-    def fillMissedInfo(self):
-        pass
+    def fillMissedInfo(self, keys, info, additional):
+        output = open(self.outName, 'w')
+        refFile = open(self.refFile, 'r')
+        prevLines = ['','','']
+
+        for index, line in enumerate(refFile.readlines()):
+            prevLines = prevLines[1:]
+            prevLines.append(line)
+            if index in keys.values():
+                if prevLines[1] == self.MULTIPLE:
+                    newLine = info.get(prevLines[0], self.MISSED)
+                else:
+                    parts = shlex.split(line)
+                    newLine = '%s\t%s' % (parts[0], \
+                            info.get(parts[0], self.MISSED))
+                if newLine[-1] == '\n':
+                    newLine = newLine[:-1]
+
+                output.write('%s\n' % newLine)
+            else:
+                output.write('%s\n' % line)
+        print keys.keys()
+        refFile.close()
+        for line in additional:
+            output.write('%s' % line)
+        """ to jest totalnie zle nie tylko jesli chodzi o znaki nowej linii
+            ale i o klucze bo jest np w outpucie 2 razy audit_creation_method
+            Bo jesli nie ma klucza w poszukiwanych, to wcale nie musimy tego dawac do additional,
+            tylko wtedy gdy nie jest to klucz ani jego wartosc...
+        """
+        output.close()
 
     def merge(self):
         missedKeys = self.getMissedKeys()
         missedValues, additionalInfo = self.getMissedValues(missedKeys)
+        self.fillMissedInfo(missedKeys, missedValues, additionalInfo)
         
 def valid(options):
     """ Check mandatory params """
